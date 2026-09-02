@@ -7,8 +7,9 @@ import Sidebar from '@/components/Sidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import {
   Users, UserPlus, Search, Edit2, RotateCcw, Trash2, X, Check,
-  AlertCircle, Lock, Key, Copy
+  AlertCircle, Lock, Key, Copy, Download, RefreshCw, Mail, Phone, FileText, CheckCircle2
 } from 'lucide-react';
+import { generateEmployeeCredentialSlipPDF } from '@/lib/reportGenerator';
 
 interface Employee {
   id: string;
@@ -33,7 +34,24 @@ interface Department {
   name: string;
 }
 
+interface CreatedCredentialsData {
+  employeeId: string;
+  username: string;
+  password: string;
+  tempPassword?: string;
+  email?: string | null;
+  phone?: string | null;
+  designation?: string | null;
+  department?: string | null;
+}
+
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
+
+const generateRandomPhone = () => `+04 ${Math.floor(100000 + Math.random() * 900000)}`;
+const generateEmailFromName = (name: string) => {
+  const clean = name.toLowerCase().trim().replace(/\s+/g, '').replace(/[^a-z0-9._-]/g, '');
+  return clean ? `${clean}@pjsofonic.com` : '';
+};
 
 function EmployeesContent() {
   const { user, accessToken, isAuthenticated, isLoading } = useAuth();
@@ -58,12 +76,14 @@ function EmployeesContent() {
   const [formPhotoUrl, setFormPhotoUrl] = useState('');
   const [formSalary, setFormSalary] = useState('');
   const [formRole, setFormRole] = useState<'EMPLOYEE' | 'ADMIN'>('EMPLOYEE');
+  const [isCustomEmail, setIsCustomEmail] = useState(false);
 
   // Status / Password states
-  const [createdCredentials, setCreatedCredentials] = useState<{ employeeId: string; tempPassword: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentialsData | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [copiedSlip, setCopiedSlip] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -120,6 +140,31 @@ function EmployeesContent() {
     reader.readAsDataURL(file);
   };
 
+  const handleOpenAddModal = () => {
+    setFormUsername('');
+    setFormEmail('');
+    setFormPhone(generateRandomPhone());
+    setFormDesignation('');
+    setFormDepartmentId('');
+    setFormPhotoUrl('');
+    setFormSalary('');
+    setFormRole('EMPLOYEE');
+    setIsCustomEmail(false);
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsAddModalOpen(true);
+  };
+
+  const handleUsernameChange = (name: string) => {
+    setFormUsername(name);
+    if (!isCustomEmail) {
+      setFormEmail(generateEmailFromName(name));
+    }
+    if (!formPhone) {
+      setFormPhone(generateRandomPhone());
+    }
+  };
+
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -150,9 +195,18 @@ function EmployeesContent() {
       if (!res.ok) throw new Error(data.error || 'Failed to create employee');
 
       setEmployees([data.employee, ...employees]);
+      const pwd = data.password || data.tempPassword || `${data.employee.employeeId}@Sofo`;
+      const deptName = departments.find(d => d.id === formDepartmentId)?.name || data.employee.department?.name || 'Unassigned';
+
       setCreatedCredentials({
         employeeId: data.employee.employeeId,
-        tempPassword: data.tempPassword
+        username: data.employee.username,
+        password: pwd,
+        tempPassword: pwd,
+        email: data.employee.email || formEmail,
+        phone: data.employee.phone || formPhone,
+        designation: data.employee.designation || formDesignation,
+        department: deptName,
       });
       setSuccessMessage('Employee created successfully.');
       setIsAddModalOpen(false);
@@ -165,6 +219,7 @@ function EmployeesContent() {
       setFormPhotoUrl('');
       setFormSalary('');
       setFormRole('EMPLOYEE');
+      setIsCustomEmail(false);
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred');
     } finally {
@@ -265,9 +320,16 @@ function EmployeesContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to reset password');
+      const pwd = data.password || data.tempPassword || `${emp.employeeId}@Sofo`;
       setCreatedCredentials({
         employeeId: emp.employeeId,
-        tempPassword: data.tempPassword
+        username: emp.username,
+        password: pwd,
+        tempPassword: pwd,
+        email: emp.email,
+        phone: emp.phone,
+        designation: emp.designation,
+        department: emp.department?.name || 'Unassigned',
       });
     } catch (err: any) {
       alert(err.message || 'Error occurred');
@@ -317,17 +379,11 @@ function EmployeesContent() {
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               Employee <span className="gradient-text">Directory</span>
             </h1>
-            <p className="text-white/60 mt-1 text-sm">Manage staff accounts, profile images, and configure status.</p>
+            <p className="text-white/60 mt-1 text-sm">Manage staff accounts, credentials, and auto-generated Sofo profiles.</p>
           </div>
           <button
-            onClick={() => {
-              setErrorMessage('');
-              setSuccessMessage('');
-              setCreatedCredentials(null);
-              setFormPhotoUrl('');
-              setIsAddModalOpen(true);
-            }}
-            className="btn-primary flex items-center justify-center gap-2 self-start font-extrabold"
+            onClick={handleOpenAddModal}
+            className="btn-primary flex items-center justify-center gap-2 self-start font-extrabold shadow-[0_0_20px_rgba(0,240,255,0.4)]"
           >
             <UserPlus size={18} />
             Add Employee
@@ -423,30 +479,73 @@ function EmployeesContent() {
         {/* Modal: Add Employee */}
         {isAddModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="glass-card max-w-md w-full p-6 relative border-cyan-500/40">
+            <div className="glass-card max-w-md w-full p-6 relative border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.25)]">
               <button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-white/60 hover:text-white">
                 <X size={18} />
               </button>
-              <h2 className="text-xl font-bold mb-4 text-cyan-400">Add New Employee Profile</h2>
+              <h2 className="text-xl font-bold mb-1 text-cyan-400">Add New Employee Profile</h2>
+              <p className="text-xs text-white/50 mb-4">Credentials and official Sofo Mail will be automatically generated.</p>
 
               <form onSubmit={handleAddSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">Username</label>
-                  <input type="text" required value={formUsername} onChange={(e) => setFormUsername(e.target.value)} className="input-glass" />
+                  <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">Employee Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Orion Kumar"
+                    value={formUsername}
+                    onChange={(e) => handleUsernameChange(e.target.value)}
+                    className="input-glass"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">Email</label>
-                    <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} className="input-glass" />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider">Official Email</label>
+                      <span className="text-[10px] text-cyan-400">@pjsofonic</span>
+                    </div>
+                    <input
+                      type="email"
+                      placeholder="name@pjsofonic.com"
+                      value={formEmail}
+                      onChange={(e) => {
+                        setFormEmail(e.target.value);
+                        setIsCustomEmail(true);
+                      }}
+                      className="input-glass text-xs font-mono"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">Phone</label>
-                    <input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} className="input-glass" />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider">Phone</label>
+                      <button
+                        type="button"
+                        onClick={() => setFormPhone(generateRandomPhone())}
+                        title="Generate new random +04 number"
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-0.5"
+                      >
+                        <RefreshCw size={10} /> Re-roll
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="+04 123456"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
+                      className="input-glass text-xs font-mono"
+                    />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">Designation</label>
-                  <input type="text" value={formDesignation} onChange={(e) => setFormDesignation(e.target.value)} className="input-glass" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior Software Engineer"
+                    value={formDesignation}
+                    onChange={(e) => setFormDesignation(e.target.value)}
+                    className="input-glass"
+                  />
                 </div>
 
                 {/* Profile Image Input */}
@@ -494,7 +593,7 @@ function EmployeesContent() {
                   </div>
                 </div>
                 <button type="submit" disabled={actionLoading} className="btn-primary w-full py-3 font-bold">
-                  {actionLoading ? 'Creating...' : 'Create Employee'}
+                  {actionLoading ? 'Creating Employee...' : 'Create Employee Profile'}
                 </button>
               </form>
             </div>
@@ -569,10 +668,10 @@ function EmployeesContent() {
           </div>
         )}
 
-        {/* Modal: Generated Credentials */}
+        {/* Modal: Official Employee Credentials & Onboarding Slip */}
         {createdCredentials && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="glass-card max-w-md w-full p-6 relative border-cyan-500/50 shadow-[0_0_35px_rgba(0,240,255,0.35)] animate-in fade-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="glass-card max-w-lg w-full p-6 relative border-cyan-500/60 shadow-[0_0_40px_rgba(0,240,255,0.4)] animate-in fade-in zoom-in-95 duration-200">
               <button
                 onClick={() => setCreatedCredentials(null)}
                 className="absolute top-4 right-4 text-white/60 hover:text-white transition-colors"
@@ -581,43 +680,98 @@ function EmployeesContent() {
               </button>
 
               <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 mx-auto mb-3 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-                  <Key size={24} />
+                <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 mx-auto mb-3 shadow-[0_0_20px_rgba(0,240,255,0.4)]">
+                  <FileText size={28} />
                 </div>
-                <h2 className="text-xl font-extrabold text-white">Employee Credentials</h2>
-                <p className="text-xs text-white/60 mt-1">Generated Employee ID and Temporary Password. Please share these with the employee.</p>
+                <h2 className="text-xl font-extrabold text-white">Employee Onboarding Credentials Slip</h2>
+                <p className="text-xs text-cyan-300/80 mt-1">Official credentials generated successfully (Direct Access Enabled).</p>
               </div>
 
-              <div className="bg-black/80 border border-cyan-500/30 rounded-2xl p-5 space-y-4 font-mono shadow-inner">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-white/50 uppercase font-semibold">Employee ID</span>
-                  <span className="text-cyan-400 font-bold text-base bg-cyan-500/10 px-3 py-1 rounded-lg border border-cyan-500/20">
+              {/* Credential Details Card */}
+              <div className="bg-black/90 border border-cyan-500/40 rounded-2xl p-5 space-y-3 font-mono shadow-inner text-sm">
+                <div className="flex items-center justify-between py-1 border-b border-white/10">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Employee Name</span>
+                  <span className="text-white font-bold">{createdCredentials.username}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-white/10">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Employee ID</span>
+                  <span className="text-cyan-400 font-bold bg-cyan-500/10 px-2.5 py-0.5 rounded border border-cyan-500/20">
                     #{createdCredentials.employeeId}
                   </span>
                 </div>
-                <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-                  <span className="text-xs text-white/50 uppercase font-semibold">Temp Password</span>
-                  <span className="text-green-400 font-bold text-base bg-green-500/15 px-3 py-1 rounded-lg border border-green-500/30">
-                    {createdCredentials.tempPassword}
+                <div className="flex items-center justify-between py-1 border-b border-white/10">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Password</span>
+                  <span className="text-green-400 font-bold bg-green-500/15 px-2.5 py-0.5 rounded border border-green-500/30">
+                    {createdCredentials.password}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-white/10">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Sofo Official Mail</span>
+                  <span className="text-cyan-300 font-medium text-xs break-all">
+                    {createdCredentials.email || `${createdCredentials.username.toLowerCase().replace(/\s+/g, '')}@pjsofonic.com`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-white/10">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Phone Number</span>
+                  <span className="text-white/90 font-medium text-xs">
+                    {createdCredentials.phone || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-xs text-white/50 uppercase font-sans font-semibold">Department & Role</span>
+                  <span className="text-white/70 text-xs">
+                    {createdCredentials.department || 'Unassigned'} • {createdCredentials.designation || 'Staff'}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`Employee ID: ${createdCredentials.employeeId}\nPassword: ${createdCredentials.tempPassword}`);
-                    alert('📋 Credentials copied to clipboard!');
-                  }}
-                  className="btn-primary flex-1 py-3 text-xs font-extrabold flex items-center justify-center gap-2"
-                >
-                  <Copy size={16} /> Copy Credentials
-                </button>
+              {/* Action Buttons */}
+              <div className="mt-6 space-y-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      const text = `PJSOFONIC EMS CREDENTIALS\nName: ${createdCredentials.username}\nEmployee ID: #${createdCredentials.employeeId}\nPassword: ${createdCredentials.password}\nOfficial Email: ${createdCredentials.email}\nPhone: ${createdCredentials.phone}\nDepartment: ${createdCredentials.department}\nDesignation: ${createdCredentials.designation}`;
+                      navigator.clipboard.writeText(text);
+                      setCopiedSlip(true);
+                      setTimeout(() => setCopiedSlip(false), 2500);
+                    }}
+                    className="btn-primary flex-1 py-3 text-xs font-extrabold flex items-center justify-center gap-2"
+                  >
+                    {copiedSlip ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-green-300" /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} /> Copy All Credentials
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      generateEmployeeCredentialSlipPDF({
+                        employeeId: createdCredentials.employeeId,
+                        username: createdCredentials.username,
+                        password: createdCredentials.password,
+                        email: createdCredentials.email,
+                        phone: createdCredentials.phone,
+                        designation: createdCredentials.designation,
+                        department: createdCredentials.department,
+                        generatedBy: user?.username,
+                      });
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border border-indigo-400/40 shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all"
+                  >
+                    <Download size={16} /> Download PDF Slip
+                  </button>
+                </div>
+
                 <button
                   onClick={() => setCreatedCredentials(null)}
-                  className="btn-tertiary py-3 px-5 text-xs font-bold"
+                  className="btn-tertiary w-full py-2.5 text-xs font-bold"
                 >
-                  Done
+                  Close Slip
                 </button>
               </div>
             </div>

@@ -39,9 +39,11 @@ interface CredentialRow {
   employeeId: string;
   username: string;
   email: string | null;
+  phone: string | null;
   designation: string | null;
   department: string;
   tempPassword: string;
+  password: string;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
@@ -118,10 +120,12 @@ function ReportsContent() {
       setCredentialsReport((data.employees || []).map((emp: any) => ({
         employeeId: emp.employeeId,
         username: emp.username,
-        email: emp.email,
+        email: emp.email || `${emp.username.toLowerCase().replace(/\s+/g, '')}@pjsofonic.com`,
+        phone: emp.phone || 'N/A',
         designation: emp.designation,
         department: emp.department?.name || 'Unassigned',
-        tempPassword: '••••••••',
+        tempPassword: emp.password || emp.tempPassword || `${emp.employeeId}@Sofo`,
+        password: emp.password || emp.tempPassword || `${emp.employeeId}@Sofo`,
       })));
     } catch (e: any) { setError(e.message); }
     finally { setCredentialsLoading(false); }
@@ -137,7 +141,10 @@ function ReportsContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate credentials');
-      setCredentialsReport(data.credentials || []);
+      setCredentialsReport((data.credentials || []).map((emp: any) => ({
+        ...emp,
+        password: emp.password || emp.tempPassword || `${emp.employeeId}@Sofo`,
+      })));
       setCredentialsGenerated(true);
     } catch (e: any) { setError(e.message); }
     finally { setCredentialsLoading(false); }
@@ -185,9 +192,9 @@ function ReportsContent() {
         csv += `${r.username},${r.employeeId},${r.email || ''},${r.designation || ''},${r.department?.name || ''},${r.status},${new Date(r.createdAt).toLocaleDateString()},${r._count.attendance}\n`;
       });
     } else {
-      csv = 'Employee,ID,Email,Designation,Dept,Temporary Password\n';
+      csv = 'Employee Name,Employee ID,Password,Official Email,Phone Number,Designation,Department\n';
       credentialsReport.forEach(r => {
-        csv += `${r.username},${r.employeeId},${r.email || ''},${r.designation || ''},${r.department},${r.tempPassword}\n`;
+        csv += `"${r.username}","${r.employeeId}","${r.password || r.tempPassword}","${r.email || ''}","${r.phone || ''}","${r.designation || ''}","${r.department}"\n`;
       });
     }
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -218,9 +225,9 @@ function ReportsContent() {
       });
     } else {
       await generatePDFReport({
-        title: 'Employee Credentials',
-        headers: ['Employee', 'ID', 'Email', 'Designation', 'Dept', 'Temporary Password'],
-        rows: credentialsReport.map(r => [r.username, r.employeeId, r.email || '', r.designation || '', r.department, r.tempPassword]),
+        title: 'Official Employee Credentials Report',
+        headers: ['Employee Name', 'Employee ID', 'Password', 'Official Email', 'Phone Number', 'Designation', 'Department'],
+        rows: credentialsReport.map(r => [r.username, `#${r.employeeId}`, r.password || r.tempPassword, r.email || '', r.phone || '', r.designation || '', r.department]),
         fileName: `employee_credentials_${new Date().toISOString().slice(0, 10)}`,
         generatedBy: user?.username,
       });
@@ -246,9 +253,9 @@ function ReportsContent() {
       });
     } else {
       generateExcelReport({
-        title: 'Employee Credentials',
-        headers: ['Employee', 'ID', 'Email', 'Designation', 'Dept', 'Temporary Password'],
-        rows: credentialsReport.map(r => [r.username, r.employeeId, r.email || '', r.designation || '', r.department, r.tempPassword]),
+        title: 'Official Employee Credentials Report',
+        headers: ['Employee Name', 'Employee ID', 'Password', 'Official Email', 'Phone Number', 'Designation', 'Department'],
+        rows: credentialsReport.map(r => [r.username, r.employeeId, r.password || r.tempPassword, r.email || '', r.phone || '', r.designation || '', r.department]),
         fileName: `employee_credentials_${new Date().toISOString().slice(0, 10)}`,
         generatedBy: user?.username,
       });
@@ -514,24 +521,26 @@ function ReportsContent() {
               </div>
             </div>
 
-            {/* Generate Button with Warning */}
-            <div className="glass-card p-5 mb-6 border-yellow-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {/* Credentials Banner & Sync Action */}
+            <div className="glass-card p-5 mb-6 border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-cyan-500/5">
               <div>
-                <h3 className="font-bold text-sm text-yellow-300 flex items-center gap-2">
-                  <AlertCircle size={16} /> Generate New Credentials
+                <h3 className="font-bold text-sm text-cyan-300 flex items-center gap-2">
+                  <AlertCircle size={16} /> Official Employee Credentials & Onboarding Directory
                 </h3>
-                <p className="text-[11px] text-white/50 mt-1">This will reset ALL employee passwords and generate new temporary credentials. Employees will need to change their password on next login.</p>
+                <p className="text-[11px] text-white/60 mt-1">
+                  Password Formula: <span className="text-cyan-400 font-mono font-bold">[Employee ID]@Sofo</span> (Direct access enabled — no forced password reset required).
+                </p>
               </div>
               <button
                 onClick={() => {
-                  if (window.confirm('⚠️ WARNING: This will reset ALL employee passwords!\n\nNew temporary passwords will be generated for every employee. They will be required to change their password on next login.\n\nAre you sure you want to continue?')) {
+                  if (window.confirm('Sync / verify all employee passwords with their standard [Employee ID]@Sofo credentials?')) {
                     generateCredentials();
                   }
                 }}
                 disabled={credentialsLoading}
                 className="btn-primary py-2.5 px-6 text-xs font-bold whitespace-nowrap flex items-center gap-2 shrink-0"
               >
-                {credentialsLoading ? 'Generating...' : '🔑 Generate All Credentials'}
+                {credentialsLoading ? 'Syncing...' : '🔄 Sync & Verify Credentials'}
               </button>
             </div>
 
@@ -542,16 +551,17 @@ function ReportsContent() {
                   <thead><tr>
                     <th>Employee</th>
                     <th>Employee ID</th>
-                    <th>Email</th>
+                    <th>Password</th>
+                    <th>Official Email</th>
+                    <th>Phone</th>
                     <th>Designation</th>
                     <th>Department</th>
-                    <th>Temporary Password</th>
                   </tr></thead>
                   <tbody>
                     {credentialsLoading ? (
-                      <tr><td colSpan={6} className="text-center py-10 text-white/30">Loading credentials...</td></tr>
+                      <tr><td colSpan={7} className="text-center py-10 text-white/30">Loading credentials...</td></tr>
                     ) : credentialsReport.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-10 text-white/30">No employees found.</td></tr>
+                      <tr><td colSpan={7} className="text-center py-10 text-white/30">No employees found.</td></tr>
                     ) : credentialsReport.map((r, idx) => (
                       <tr key={idx}>
                         <td>
@@ -560,14 +570,15 @@ function ReportsContent() {
                         <td>
                           <span className="text-cyan-400 font-mono text-xs">#{r.employeeId}</span>
                         </td>
-                        <td className="text-white/60 text-xs">{r.email || '—'}</td>
-                        <td className="text-white/70 text-xs">{r.designation || 'Staff'}</td>
-                        <td className="text-white/70 text-xs">{r.department}</td>
                         <td>
-                          <span className={`font-mono text-xs px-2 py-1 rounded-lg ${r.tempPassword === '••••••••' ? 'bg-white/5 text-white/30' : 'bg-green-500/15 text-green-400 border border-green-500/30'}`}>
-                            {r.tempPassword}
+                          <span className="font-mono text-xs px-2.5 py-1 rounded-lg bg-green-500/15 text-green-400 border border-green-500/30 font-bold">
+                            {r.password || r.tempPassword}
                           </span>
                         </td>
+                        <td className="text-cyan-300 font-mono text-xs">{r.email || '—'}</td>
+                        <td className="text-white/80 font-mono text-xs">{r.phone || '—'}</td>
+                        <td className="text-white/70 text-xs">{r.designation || 'Staff'}</td>
+                        <td className="text-white/70 text-xs">{r.department}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -578,7 +589,7 @@ function ReportsContent() {
             {credentialsGenerated && (
               <div className="mt-4 flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-green-400 text-xs">
                 <TrendingUp size={16} />
-                Credentials generated successfully! Use the Export buttons above to download in PDF, Excel, or CSV format.
+                Credentials verified and synchronized successfully! You can export them using the buttons above.
               </div>
             )}
           </>
