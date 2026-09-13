@@ -9,6 +9,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        value: https://erp-backend-1-02lc.onrender.com/api
+        value: https://ems-backend-z3bv.onrender.com/api
       - key: NEXT_PUBLIC_SOCKET_URL
-        value: https://erp-backend-1-02lc.onrender.com
+        value: https://ems-backend-z3bv.onrender.com

@@ -45,8 +45,8 @@
 Create a `.env.local` file in the `frontend/` root directory:
 
 ```env
-NEXT_PUBLIC_API_URL=https://erp-backend-1-02lc.onrender.com/api
-NEXT_PUBLIC_SOCKET_URL=https://erp-backend-1-02lc.onrender.com
+NEXT_PUBLIC_API_URL=https://ems-backend-z3bv.onrender.com/api
+NEXT_PUBLIC_SOCKET_URL=https://ems-backend-z3bv.onrender.com
 ```
 
 ---

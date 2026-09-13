@@ -34,7 +34,7 @@ interface Employee {
   employeeId: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://ems-backend-z3bv.onrender.com/api';
 
 export default function MeetingsPage() {
   const { accessToken, isAuthenticated, isLoading, user } = useAuth();

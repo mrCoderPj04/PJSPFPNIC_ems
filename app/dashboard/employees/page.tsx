@@ -45,7 +45,7 @@ interface CreatedCredentialsData {
   department?: string | null;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://ems-backend-z3bv.onrender.com/api';
 
 const generateRandomPhone = () => `+04 ${Math.floor(100000 + Math.random() * 900000)}`;
 const generateEmailFromName = (name: string) => {

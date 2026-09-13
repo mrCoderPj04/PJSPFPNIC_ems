@@ -16,7 +16,7 @@ const SocketContext = createContext<SocketContextType>({
   onlineUsers: [],
 });
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://erp-backend-1-02lc.onrender.com';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://ems-backend-z3bv.onrender.com';
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { accessToken, isAuthenticated } = useAuth();

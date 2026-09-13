@@ -7,7 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { User, Key, Check, AlertCircle, Camera } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://ems-backend-z3bv.onrender.com/api';
 
 function SettingsContent() {
   const { accessToken, isAuthenticated, isLoading, user, changePassword, updateUserPhoto } = useAuth();

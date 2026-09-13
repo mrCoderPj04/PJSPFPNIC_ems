@@ -19,7 +19,7 @@ interface DashboardStats {
   departments: { name: string; employeeCount: number }[];
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://erp-backend-1-02lc.onrender.com/api';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://ems-backend-z3bv.onrender.com/api';
 
 function getGreeting(isPunchedOut: boolean): string {
   if (isPunchedOut) return "Good Night";
